@@ -5,7 +5,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from  langchain.agents.agent import AgentExecutor
 from langchain.agents.tool_calling_agent.base import create_tool_calling_agent
 from langchain_anthropic import ChatAnthropic
-from equity_tools import internet_search_tool
+from buffet_tools import internet_search_tool, income_statements
 
 
 load_dotenv()
@@ -50,22 +50,10 @@ anthropic_prompt = ChatPromptTemplate([
 ]).partial(format_instructions = parser.get_format_instructions())
 
 
-anthropic_tools = [internet_search_tool]
+anthropic_tools = [internet_search_tool, income_statements]
 
 #AI Agent
-meet_agent0 = create_tool_calling_agent(anthropic_model, anthropic_tools, anthropic_prompt) 
-agent_executor = AgentExecutor(agent = meet_agent0, tools = anthropic_tools, verbose = True)
+buffet_agent = create_tool_calling_agent(anthropic_model, anthropic_tools, anthropic_prompt) 
+agent_executor = AgentExecutor(agent = buffet_agent, tools = anthropic_tools, verbose = True)
 query = input("What Stock Symbols would you like me to research?")
 print(agent_executor.invoke({"query": query}))
-
-
-'''
-message = client.messages.create(
-    model="claude-sonnet-4-20250514",
-    max_tokens=1024,
-    messages=[
-        {"role": "user", "content": "Hello, Claude"}
-    ]
-)
-print(message.content)
-'''
