@@ -115,6 +115,21 @@ cash_flow = Tool(
     description = "Returns the annual cash flow statements for the company of interest"
 )
 
+@tool
+def news_sentiment(symbol:str) ->str:
+    """Returns live and historical market news & sentiment data from a large & growing selection of premier news outlets for the selected stock symbol"""
+    import requests
+    response = requests.get('https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers='+symbol+'&apikey={ALPHA_ADVANTAGE_API_KEY}')
+    symbol_overview = response.json()
+
+    return str(symbol_overview)
+
+news_sentiment = Tool(
+    name = "news_sentiment",
+    func = news_sentiment,
+    description = "Returns live and historical market news & sentiment data from a large & growing selection of premier news outlets for the selected stock symbol"
+)
+
 
 
 

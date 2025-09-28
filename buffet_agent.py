@@ -5,7 +5,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from  langchain.agents.agent import AgentExecutor
 from langchain.agents.tool_calling_agent.base import create_tool_calling_agent
 from langchain_anthropic import ChatAnthropic
-from buffet_tools import internet_search_tool, income_statements, balance_sheets, cash_flow
+from buffet_tools import internet_search_tool, income_statements, balance_sheets, cash_flow, news_sentiment
 
 
 load_dotenv()
@@ -33,7 +33,8 @@ anthropic_prompt = ChatPromptTemplate([
         These are the parameters for success
             1. Debt/Equity < 0.5
             2. Current Ratio greater than 1.5 and less than 2.5
-            3. Price/Book Ratio less than 1.5
+            3. Price/Book Ratio less than 1.5.  Focus on tangible book value adjusted for understated assets 
+               (appreciated real estate, investment securities) and overstated assets (goodwill, obsolete inventory)
             4. Return on Equity greater than 8 percent and increasing or remaining constant over the last 10 years
             5. Return on Assets greater than 6%
             6. Stable Book Value Growth
@@ -58,6 +59,11 @@ anthropic_prompt = ChatPromptTemplate([
             25. Stock/Equity ratio for bonds measuring market price of junior issues to total debt
             26. Two-part appraisal process: past-performance value based on historical data, then adjusted for future prospects
             27. High Valuation if it is a Growth Stock. Use this valuation formula: Value = Current Earnings times (8.5 + 2 times Expected Annual Growth Rate)
+            28. Simple, understandable businesses with predictable cash flows; companies producing undifferentiated/homogeneous products
+            29. Insiders who invest their own money alongside shareholders; management with stock options aligned with share price performance; 
+                shareholder-oriented management taking value-realization actions
+            30. Companies with catalysts for value realization (spinoffs, liquidations, share buybacks)
+
         Answer the user query using the neccessary tools
         Wrap the output in this format and provide no other text\n{format_instructions}
         """,
@@ -68,7 +74,7 @@ anthropic_prompt = ChatPromptTemplate([
 ]).partial(format_instructions = parser.get_format_instructions())
 
 
-anthropic_tools = [internet_search_tool, income_statements, balance_sheets, cash_flow]
+anthropic_tools = [income_statements, balance_sheets, cash_flow, news_sentiment]
 
 #AI Agent
 buffet_agent = create_tool_calling_agent(anthropic_model, anthropic_tools, anthropic_prompt) 
