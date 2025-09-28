@@ -5,7 +5,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from  langchain.agents.agent import AgentExecutor
 from langchain.agents.tool_calling_agent.base import create_tool_calling_agent
 from langchain_anthropic import ChatAnthropic
-from buffet_tools import internet_search_tool, income_statements, balance_sheets, cash_flow, news_sentiment
+from buffet_tools import internet_search_tool, income_statements, balance_sheets, cash_flow, news_sentiment, send_mail_tool, EmailInput
 
 
 load_dotenv()
@@ -65,7 +65,8 @@ anthropic_prompt = ChatPromptTemplate([
             30. Companies with catalysts for value realization (spinoffs, liquidations, share buybacks)
 
         Answer the user query using the neccessary tools
-        Wrap the output in this format and provide no other text\n{format_instructions}
+        Wrap the output in this format and provide no other text
+        Send an email to lmahiam98@gmail.com with the Stock Symbol as the subject and the output as the email message\n{format_instructions}
         """,
     ),
     ("placeholder", "{chat_history}"),
@@ -74,7 +75,7 @@ anthropic_prompt = ChatPromptTemplate([
 ]).partial(format_instructions = parser.get_format_instructions())
 
 
-anthropic_tools = [income_statements, balance_sheets, cash_flow, news_sentiment]
+anthropic_tools = [income_statements, send_mail_tool]
 
 #AI Agent
 buffet_agent = create_tool_calling_agent(anthropic_model, anthropic_tools, anthropic_prompt) 

@@ -1,9 +1,21 @@
 from langchain_community.tools import DuckDuckGoSearchResults
 from langchain.tools import Tool, tool
+from pydantic import BaseModel, Field, ValidationError
 from dotenv import load_dotenv
+from typing import Annotated
+from langchain_google_community.gmail.toolkit import GmailToolkit
+from langchain_community.tools.gmail.utils import get_gmail_credentials, build_resource_service
+from langchain_core.tools.structured import StructuredTool
+import json
+from typing import Any
+import os
 
-load_dotenv()
+load_dotenv(override = True)
 
+class EmailInput(BaseModel):
+    to: str = Field(..., description="Recipient email address")
+    subject: str = Field(..., description="Email subject")
+    body: str = Field(..., description="Email body")
 
 internet_search = DuckDuckGoSearchResults()
 internet_search_tool = Tool(
@@ -16,7 +28,7 @@ internet_search_tool = Tool(
 def income_statements(symbol:str) -> str:
     """Returns the annual income statements for the company of interest."""
     import requests
-    response = requests.get('https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol='+symbol+'&apikey={ALPHA_ADVANTAGE_API_KEY}')
+    response = requests.get('https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol='+symbol+'&apikey=' + os.getenv("ALPHA_ADVANTAGE_API_KEY"))
     symbol_overview = response.json()
     income_statements = dict()
     for year in range(len(symbol_overview['annualReports'])):
@@ -48,7 +60,7 @@ income_statements = Tool(
 def balance_sheets(symbol:str) -> str:
     """Returns the annual balance sheets for the company of interest"""
     import requests
-    response = requests.get('https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol='+symbol+'&apikey={ALPHA_ADVANTAGE_API_KEY}')
+    response = requests.get('https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol='+symbol+'&apikey=' + os.getenv("ALPHA_ADVANTAGE_API_KEY"))
     symbol_overview = response.json()
     balance_sheets = dict()
     for year in range(len(symbol_overview['annualReports'])):
@@ -88,7 +100,7 @@ balance_sheets = Tool(
 def cash_flow(symbol:str) -> str:
     """Returns the annual cash flow statements for the company of interest"""
     import requests
-    response = requests.get('https://www.alphavantage.co/query?function=CASH_FLOW&symbol='+symbol+'&apikey={ALPHA_ADVANTAGE_API_KEY}')
+    response = requests.get('https://www.alphavantage.co/query?function=CASH_FLOW&symbol='+symbol+'&apikey=' + os.getenv("ALPHA_ADVANTAGE_API_KEY"))
     symbol_overview = response.json()
     cash_flow = dict()
     for year in range(len(symbol_overview['annualReports'])):
@@ -119,7 +131,7 @@ cash_flow = Tool(
 def news_sentiment(symbol:str) ->str:
     """Returns live and historical market news & sentiment data from a large & growing selection of premier news outlets for the selected stock symbol"""
     import requests
-    response = requests.get('https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers='+symbol+'&apikey={ALPHA_ADVANTAGE_API_KEY}')
+    response = requests.get('https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers='+symbol+'&apikey=' + os.getenv("ALPHA_ADVANTAGE_API_KEY"))
     symbol_overview = response.json()
 
     return str(symbol_overview)
@@ -130,7 +142,30 @@ news_sentiment = Tool(
     description = "Returns live and historical market news & sentiment data from a large & growing selection of premier news outlets for the selected stock symbol"
 )
 
+@tool
+def send_mail_impl(to: str, subject: str, body: str) -> str:
+    """Send an email using Gmail via LangChain GmailToolkit."""
+    credentials = get_gmail_credentials(
+        token_path="token.json",
+        scopes=["https://mail.google.com/"]
+    )
+    api_resource = build_resource_service(credentials=credentials)
 
+    toolkit = GmailToolkit(api_resource=api_resource)
+    send_tool = [t for t in toolkit.get_tools() if t.name == "GmailSendMessage"][0]
 
+    result = send_tool.run({
+        "to": to,
+        "subject": subject,
+        "message": body
+    })
 
+    return f"Sent to={to!r} subject={subject!r} body_len={len(body)}"
+
+send_mail_tool = StructuredTool.from_function(
+    func=send_mail_impl,
+    name="send_mail_tool",
+    description="Send an email",
+    args_schema=EmailInput
+)
 

@@ -6,3 +6,4 @@ pydantic
 duckduckgo-search
 tools
 ddgs
+langchain-google-community[gmail]
