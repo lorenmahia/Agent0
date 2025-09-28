@@ -14,7 +14,7 @@ internet_search_tool = Tool(
 
 @tool
 def income_statements(symbol:str) -> str:
-    """Returns the annual and quarterly income statements for the company of interest."""
+    """Returns the annual income statements for the company of interest."""
     import requests
     response = requests.get('https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol='+symbol+'&apikey={ALPHA_ADVANTAGE_API_KEY}')
     symbol_overview = response.json()
@@ -41,6 +41,80 @@ def income_statements(symbol:str) -> str:
 income_statements = Tool(
     name = "income_statements",
     func = income_statements,
-    description="Returns the annual and quarterly income statements for the company of interest",
+    description="Returns the annual income statements for the company of interest",
 )
+
+@tool
+def balance_sheets(symbol:str) -> str:
+    """Returns the annual balance sheets for the company of interest"""
+    import requests
+    response = requests.get('https://www.alphavantage.co/query?function=BALANCE_SHEET&symbol='+symbol+'&apikey={ALPHA_ADVANTAGE_API_KEY}')
+    symbol_overview = response.json()
+    balance_sheets = dict()
+    for year in range(len(symbol_overview['annualReports'])):
+        balance_sheets[symbol_overview['annualReports'][year]['fiscalDateEnding']] = (
+            f"For the fiscal year ending {symbol_overview['annualReports'][year]['fiscalDateEnding']}, "
+            f"reported in {symbol_overview['annualReports'][year]['reportedCurrency']}, the company reported total assets of "
+            f"{symbol_overview['annualReports'][year]['totalAssets']}, including current assets of "
+            f"{symbol_overview['annualReports'][year]['totalCurrentAssets']}. Cash and cash equivalents at carrying value were "
+            f"{symbol_overview['annualReports'][year]['cashAndCashEquivalentsAtCarryingValue']}, with short-term investments of "
+            f"{symbol_overview['annualReports'][year]['shortTermInvestments']} and inventory valued at "
+            f"{symbol_overview['annualReports'][year]['inventory']}. Current net receivables amounted to "
+            f"{symbol_overview['annualReports'][year]['currentNetReceivables']}, while non-current assets totaled "
+            f"{symbol_overview['annualReports'][year]['totalNonCurrentAssets']}, including property, plant, and equipment at "
+            f"{symbol_overview['annualReports'][year]['propertyPlantEquipment']}. Intangible assets, excluding goodwill, were "
+            f"{symbol_overview['annualReports'][year]['intangibleAssetsExcludingGoodwill']}, with goodwill valued at "
+            f"{symbol_overview['annualReports'][year]['goodwill']}. Total liabilities reached "
+            f"{symbol_overview['annualReports'][year]['totalLiabilities']}, of which current liabilities accounted for "
+            f"{symbol_overview['annualReports'][year]['totalCurrentLiabilities']}, including short-term debt of "
+            f"{symbol_overview['annualReports'][year]['shortTermDebt']}. Non-current liabilities stood at "
+            f"{symbol_overview['annualReports'][year]['totalNonCurrentLiabilities']}, featuring long-term debt of "
+            f"{symbol_overview['annualReports'][year]['longTermDebt']}. Total shareholder equity was "
+            f"{symbol_overview['annualReports'][year]['totalShareholderEquity']}, supported by retained earnings of "
+            f"{symbol_overview['annualReports'][year]['retainedEarnings']}, common stock valued at "
+            f"{symbol_overview['annualReports'][year]['commonStock']}, with "
+            f"{symbol_overview['annualReports'][year]['commonStockSharesOutstanding']} shares outstanding."
+        )
+    
+    return str(balance_sheets)
+
+balance_sheets = Tool(
+    name = "balance_sheets",
+    func = balance_sheets,
+    description = "Returns the annual balance sheets for the company of interest"
+)
+
+@tool
+def cash_flow(symbol:str) -> str:
+    """Returns the annual cash flow statements for the company of interest"""
+    import requests
+    response = requests.get('https://www.alphavantage.co/query?function=CASH_FLOW&symbol='+symbol+'&apikey={ALPHA_ADVANTAGE_API_KEY}')
+    symbol_overview = response.json()
+    cash_flow = dict()
+    for year in range(len(symbol_overview['annualReports'])):
+        cash_flow[symbol_overview['annualReports'][year]['fiscalDateEnding']] = (
+        f"For the fiscal year ending {symbol_overview['annualReports'][year]['fiscalDateEnding']}, "
+        f"reported in {symbol_overview['annualReports'][year]['reportedCurrency']}, the company generated an operating cash flow of "
+        f"{symbol_overview['annualReports'][year]['operatingCashflow']}. Depreciation, depletion, and amortization expenses were "
+        f"{symbol_overview['annualReports'][year]['depreciationDepletionAndAmortization']}, with capital expenditures totaling "
+        f"{symbol_overview['annualReports'][year]['capitalExpenditures']}. Inventory changed by "
+        f"{symbol_overview['annualReports'][year]['changeInInventory']}, while cash flow from investments was "
+        f"{symbol_overview['annualReports'][year]['cashflowFromInvestment']} and cash flow from financing activities was "
+        f"{symbol_overview['annualReports'][year]['cashflowFromFinancing']}. Dividend payouts amounted to "
+        f"{symbol_overview['annualReports'][year]['dividendPayout']}, specifically for common stock at "
+        f"{symbol_overview['annualReports'][year]['dividendPayoutCommonStock']}. The company recorded proceeds from repurchase of equity of "
+        f"{symbol_overview['annualReports'][year]['proceedsFromRepurchaseOfEquity']}. Finally, net income for the year reached "
+        f"{symbol_overview['annualReports'][year]['netIncome']}."
+    )
+
+    return str(cash_flow)
+
+cash_flow = Tool(
+    name = "cash_flow",
+    func = cash_flow,
+    description = "Returns the annual cash flow statements for the company of interest"
+)
+
+
+
 
