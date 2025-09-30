@@ -1,0 +1,11 @@
+{
+    "Source": "Webull",
+    "Watchlist": "GoldBaby2024",
+    "Symbols": [
+        "LUNA","CRH","FCX","VRT","NVDA","BBBY","ACMR","HOOD","SMCI","WETH","MASI","INSM","ISRG","IESC","CTRE",
+        "KNSL","HCA","ALL","FIX","BAH","ITRI","MEDP","ORLY","PDD","VLTO","MPW","LLY","CELH","PLTR","BLBD",
+        "TPL","EXTR","CHWY","WING","DEO","ANET","SGI","GLD","PPC","V","CASY","AWI","SNOW","RACE","AEM","PANW",
+        "CPRT","LIN","TLT","TNK","PAPI","CRWD","MA","UNH","EA","LAND","FTNT","ARM","KSPI","FUTU","EQIX","NKE",
+        "BIRK","BMI","BRBR","MDY","PLD","TTWO","ANF","CNQ","MBLY"
+    ]
+}

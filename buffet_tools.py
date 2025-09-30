@@ -3,19 +3,25 @@ from langchain.tools import Tool, tool
 from pydantic import BaseModel, Field, ValidationError
 from dotenv import load_dotenv
 from typing import Annotated
+from langchain_community.chat_models import ChatAnthropic
 from langchain_google_community.gmail.toolkit import GmailToolkit
 from langchain_community.tools.gmail.utils import get_gmail_credentials, build_resource_service
 from langchain_core.tools.structured import StructuredTool
 import json
-from typing import Any
+from typing import Optional, Dict, Any, List
 import os
+from datetime import datetime
 
 load_dotenv(override = True)
 
 class EmailInput(BaseModel):
     to: str = Field(..., description="Recipient email address")
     subject: str = Field(..., description="Email subject")
-    body: str = Field(..., description="Email body")
+    body: Optional[str] = Field(None, description="Email body; adapter will compose if missing")
+
+class FileOutput(BaseModel):
+    symbol : str = Field(..., description="The Stock Symbol")
+    data : str = Field(..., description="The Output to be saved to the text file")
 
 internet_search = DuckDuckGoSearchResults()
 internet_search_tool = Tool(
@@ -142,30 +148,164 @@ news_sentiment = Tool(
     description = "Returns live and historical market news & sentiment data from a large & growing selection of premier news outlets for the selected stock symbol"
 )
 
-@tool
-def send_mail_impl(to: str, subject: str, body: str) -> str:
-    """Send an email using Gmail via LangChain GmailToolkit."""
+
+
+def send_mail_impl(
+    to: str,
+    subject: str,
+    body: str,
+    *,
+    client_secrets_file: str = "credentials.json",
+    token_path: str = "token.json",
+    scopes: Optional[List[str]] = None,
+    send_as_draft: bool = False,
+) -> str:
+
+    if scopes is None:
+        scopes = ["https://mail.google.com/"]
+
     credentials = get_gmail_credentials(
-        token_path="token.json",
-        scopes=["https://mail.google.com/"]
+        token_file="token.json",
+        scopes=["https://mail.google.com/"],
+        client_secrets_file="credentials.json",
     )
     api_resource = build_resource_service(credentials=credentials)
 
     toolkit = GmailToolkit(api_resource=api_resource)
-    send_tool = [t for t in toolkit.get_tools() if t.name == "GmailSendMessage"][0]
+    send_tool = next((t for t in toolkit.get_tools() if getattr(t, "name", None) == "GmailSendMessage"), None)
+    draft_tool = [t for t in toolkit.get_tools() if t.name == "GmailCreateDraft"]
 
-    result = send_tool.run({
-        "to": to,
-        "subject": subject,
-        "message": body
-    })
+    payload = {"to": to, "subject": subject, "message": body}
 
-    return f"Sent to={to!r} subject={subject!r} body_len={len(body)}"
+    if send_as_draft:
+        if draft_tool is None:
+            raise RuntimeError("GmailCreateDraft tool not available.")
+        result = draft_tool.run(payload)
+        return f"Draft created. Result: {result}"
+    else:
+        if send_tool is None:
+            raise RuntimeError("GmailSendMessage tool not available.")
+        result = send_tool.run(payload)
+        return f"Message Sent with Result: {result}"
+
+def _safe_load_json_maybe(text: str) -> Any:
+    """
+    Try to parse JSON from a string that may contain JSON with newlines/escaped characters.
+    Returns parsed object on success, otherwise returns None.
+    """
+    if not isinstance(text, str):
+        return None
+    text_strip = text.strip()
+    try:
+        return json.loads(text_strip)
+    except Exception:
+        try:
+            return json.loads(text_strip.replace("\\n", "\n").replace("\\'", "'").replace('\\"', '"'))
+        except Exception:
+            start = text_strip.find("{")
+            end = text_strip.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                snippet = text_strip[start : end + 1]
+                try:
+                    return json.loads(snippet)
+                except Exception:
+                    return None
+            return None
+
+
+def flatten_body_field(body_field: Any) -> str:
+    """
+    Convert the `body` field into a plain text string suitable for an email body.
+    Accepts:
+      - a dict containing 'summary', 'sources', 'tools_used'
+      - a JSON string encoding such a dict
+      - a plain string
+      - other values (stringified)
+    """
+    if isinstance(body_field, dict):
+        summary = body_field.get("summary") or ""
+        sources = body_field.get("sources") or []
+        tools_used = body_field.get("tools_used") or []
+        parts = []
+        if summary:
+            parts.append(summary.strip())
+        if sources:
+            parts.append("Sources: " + ", ".join(map(str, sources)))
+        if tools_used:
+            parts.append("Tools used: " + ", ".join(map(str, tools_used)))
+        return "\n\n".join(parts).strip()
+
+    if isinstance(body_field, str):
+        parsed = _safe_load_json_maybe(body_field)
+        if isinstance(parsed, dict):
+            return flatten_body_field(parsed)
+        return body_field.strip()
+
+    return str(body_field)
+
+def send_mail_adapter(*args, **kwargs) -> str:
+    if kwargs:
+        payload = dict(kwargs)
+    elif args:
+        first = args[0]
+        if isinstance(first, str):
+            parsed = _safe_load_json_maybe(first)
+            if isinstance(parsed, dict):
+                payload = parsed
+            else:
+                raise ValueError("Positional string tool input must contain JSON with to/subject (or use named args)")
+        elif isinstance(first, dict):
+            payload = first.copy()
+        else:
+            raise ValueError("Unsupported positional tool input type")
+    else:
+        payload = {}
+
+    to = payload.get("to")
+    subject = payload.get("subject")
+    body_field = payload.get("body")
+
+    body_text = flatten_body_field(body_field) if body_field is not None else ""
+
+    if not body_text:
+        llm = ChatAnthropic(model="claude-2.1", temperature=0)
+        system = "You are a professional assistant. Write a concise, professional email body (3 short paragraphs max) summarizing the requested analysis."
+        user = f"Subject: {subject}\n\nPlease produce the analysis summary to send in the email body."
+        resp = llm.generate([{"role": "system", "content": system}, {"role": "user", "content": user}])
+        try:
+            body_text = resp.generations[0][0].text.strip()
+        except Exception:
+            body_text = f"Analysis for {subject or 'No Subject'} is not available."
+
+    try:
+        validated = EmailInput.model_validate({"to": to, "subject": subject, "body": body_text})
+    except ValidationError as e:
+        raise ValueError(f"Invalid email payload: {e}") from e
+
+    return send_mail_impl(validated.to, validated.subject, validated.body)
 
 send_mail_tool = StructuredTool.from_function(
-    func=send_mail_impl,
+    func=send_mail_adapter,
     name="send_mail_tool",
     description="Send an email",
     args_schema=EmailInput
 )
 
+def save_summary_to_file(symbol : str, data : str):
+    """Saves the Stock Results Summary to a text file"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    filename = f"{symbol}_research.txt"
+    formatted_text = f"--- Stock Research Output ---\nTimestamp: {timestamp}\n\n{data}\n\n"
+
+    with open(filename, "a", encoding="utf-8") as f:
+        f.write(formatted_text)
+        f.write("\n\n")
+    
+    return f"Data for {symbol} successfully saved to {filename}"
+
+save_to_file = StructuredTool.from_function(
+    name = "save_to_file",
+    func = save_summary_to_file,
+    description = "Saves the Stock Results Summary to a text file",
+    args_schema=FileOutput
+)
